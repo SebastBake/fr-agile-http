@@ -192,7 +192,7 @@ char* http_err_to_msg(int errcode) {
 // Send an error response
 void http_err(int fd, int errcode) {
 
-	int byteswrote = 0;
+	int wrote = 0;
 	dynstr_t* response = new_dynstr();
 	dynstr_t* content = new_dynstr();
 	char* error_msg_print = http_err_to_msg(errcode);
@@ -207,9 +207,8 @@ void http_err(int fd, int errcode) {
 	dynstr_onto_dynstr(response, content);
 
 	// Write response to fd
-	byteswrote = write(fd, response->s, response->len);
-	if (byteswrote != response->len) {
-		http_err(fd, errcode);
+	while (wrote <= response->len) {
+		wrote += write(fd, response->s+wrote, response->len-wrote);
 	}
 	//printf("===ERROR: %d===\n%s\n", errcode, response->s);
 
@@ -223,7 +222,7 @@ void send_file(int fd, char* filename) {
 
 	assert(filename != NULL);
 
-	int byteswrote = 0;
+	int wrote = 0;
 	dynstr_t* content = NULL;
 	dynstr_t* response = NULL;
 	FILE* fp = NULL;
@@ -247,8 +246,8 @@ void send_file(int fd, char* filename) {
 
 	// Send
 	byteswrote = write(fd, response->s, response->len);
-	if (byteswrote != response->len) {
-		send_file(fd, filename);
+	while (wrote <= response->len) {
+		wrote += write(fd, response->s+wrote, response->len-wrote);
 	}
 	//printf("===SUCCESS===\n%s\n", response->s);
 
