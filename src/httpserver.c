@@ -59,7 +59,7 @@
 #define URL_LEN 256
 #define WRITE_MSG "Incomplete write: %d of %d bytes\n"
 #define RECIEVED_MSG "Recieved request: %s\n"
-#define REQLINE_TEMPLATE "%s /%s %*s"
+#define REQLINE_TEMPLATE "%s %s %*s"
 
 typedef struct {
 	char* files;
