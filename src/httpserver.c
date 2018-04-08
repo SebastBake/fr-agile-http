@@ -57,6 +57,7 @@
 #define MIMETYPE_MAXLEN strlen(MIMETYPE_JS) 
 #define HTTP_VERSION_LEN 16
 #define URL_LEN 256
+#define INCOMPLETE_SEND_MSG "Incomplete write: wrote %d of %d bytes\n"
 
 typedef struct {
 	char* files;
@@ -207,7 +208,10 @@ void http_err(int fd, int errcode) {
 	dynstr_onto_dynstr(response, content);
 
 	// Write response to fd
-	wrote = write(fd, response->s, response->len);
+	while (wrote < response->len) {
+		wrote = write(fd, response->s+wrote, response->len-wrote);
+		printf(INCOMPLETE_SEND_MSG, wrote, response->len);
+	}
 	//printf("===ERROR: %d===\n%s\n", errcode, response->s);
 
 	// Cleanup
@@ -243,8 +247,10 @@ void send_file(int fd, char* filename) {
 	dynstr_onto_dynstr(response, content);
 
 	// Sends
-	wrote = write(fd, response->s, response->len);
-
+	while (wrote < response->len) {
+		wrote = write(fd, response->s+wrote, response->len-wrote);
+		printf(INCOMPLETE_SEND_MSG, wrote, response->len);
+	}
 	//printf("===SUCCESS===\n%s\n", response->s);
 
 	// Cleanup
