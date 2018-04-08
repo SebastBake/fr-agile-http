@@ -17,11 +17,10 @@
 #include <unistd.h>
 #include "tcpserver.h"
 
-#define LISTENQ_LEN 20
+#define LISTENQ_LEN 3
 #define PORT_DIGITS 6
 
 #define SOCK_ERR -1
-#define PTHREAD_SUCCESS 0
 #define GETADDRINFO_SUCCESS 0
 #define ERR_MSG "A TCP server error occurred"
 
@@ -99,7 +98,7 @@ struct addrinfo* gethostaddrinfo(unsigned short port) {
 
 	status = getaddrinfo(NULL, portstr, &addrinfohints, &hostaddrinfo);
 	if (status != GETADDRINFO_SUCCESS) {
-		printf("%s", gai_strerror(status));
+		printf("%s\n", gai_strerror(status));
 		exit(EXIT_FAILURE);
 	}
 
@@ -135,6 +134,7 @@ void* runapp(void* arg_ptr) {
 
 	runapp_arg_t* arg = arg_ptr;
 	arg->app->run(arg->fd, arg->app->args);
+	printf("completed a request\n");
 
 	shutdown(arg->fd, SHUT_RDWR);
 	close(arg->fd);
@@ -147,7 +147,7 @@ void* runapp(void* arg_ptr) {
 // Start the app in new thread
 void startappthread(int fd, app_t* app) {
 
-	int success;
+	int failed;
 	runapp_arg_t* runapp_arg = (runapp_arg_t*) malloc(sizeof(runapp_arg_t));
 	assert(runapp_arg != NULL);
 
@@ -155,10 +155,10 @@ void startappthread(int fd, app_t* app) {
 	runapp_arg->fd = fd;
 	runapp_arg->thread = (pthread_t*) malloc(sizeof(pthread_t));
 	assert(runapp_arg->thread!=NULL);
-	success = pthread_create(runapp_arg->thread, NULL, &runapp, runapp_arg);
-	if(!success) {
-		shutdown(arg->fd, SHUT_RDWR);
-		close(arg->fd);
+	failed = pthread_create(runapp_arg->thread, NULL, &runapp, runapp_arg);
+	if(failed) {
+		shutdown(fd, SHUT_RDWR);
+		close(fd);
 		free(runapp_arg);
 	}
 }
