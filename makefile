@@ -8,7 +8,7 @@
 
 
 CC=gcc
-CFLAGS=-Wall
+CFLAGS=-Wall -pthread
 OUT=bin/server
 SRC=src/dynstr.o src/httpserver.o src/tcpserver.o src/main.o
 
