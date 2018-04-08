@@ -21,6 +21,7 @@
 #define PORT_DIGITS 6
 
 #define SOCK_ERR -1
+#define PTHREAD_SUCCESS 0
 #define GETADDRINFO_SUCCESS 0
 #define ERR_MSG "A TCP server error occurred"
 
@@ -146,6 +147,7 @@ void* runapp(void* arg_ptr) {
 // Start the app in new thread
 void startappthread(int fd, app_t* app) {
 
+	int success;
 	runapp_arg_t* runapp_arg = (runapp_arg_t*) malloc(sizeof(runapp_arg_t));
 	assert(runapp_arg != NULL);
 
@@ -153,5 +155,10 @@ void startappthread(int fd, app_t* app) {
 	runapp_arg->fd = fd;
 	runapp_arg->thread = (pthread_t*) malloc(sizeof(pthread_t));
 	assert(runapp_arg->thread!=NULL);
-	pthread_create(runapp_arg->thread, NULL, &runapp, runapp_arg);
+	success = pthread_create(runapp_arg->thread, NULL, &runapp, runapp_arg);
+	if(!success) {
+		shutdown(arg->fd, SHUT_RDWR);
+		close(arg->fd);
+		free(runapp_arg);
+	}
 }
