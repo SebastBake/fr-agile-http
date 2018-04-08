@@ -57,8 +57,9 @@
 #define MIMETYPE_MAXLEN strlen(MIMETYPE_JS) 
 #define HTTP_VERSION_LEN 16
 #define URL_LEN 256
-#define WRITE_MSG "Wrote %d of %d bytes\n"
+#define WRITE_MSG "Incomplete write: %d of %d bytes\n"
 #define RECIEVED_MSG "Recieved request: %s\n"
+#define REQLINE_TEMPLATE "%s /%s %*s"
 
 typedef struct {
 	char* files;
@@ -209,9 +210,9 @@ void http_err(int fd, int errcode) {
 	dynstr_onto_dynstr(response, content);
 
 	// Write response to fd
-	while (wrote < response->len) {
-		wrote = write(fd, response->s+wrote, response->len-wrote);
-		//printf(WRITE_MSG, wrote, response->len);
+	wrote = write(fd, response->s, response->len);
+	if (wrote < response->len) {
+		printf(WRITE_MSG, wrote, response->len);
 	}
 	//printf("===ERROR: %d===\n%s\n", errcode, response->s);
 
@@ -248,9 +249,9 @@ void send_file(int fd, char* filename) {
 	dynstr_onto_dynstr(response, content);
 
 	// Sends
-	while (wrote < response->len) {
-		wrote = write(fd, response->s+wrote, response->len-wrote);
-		//printf(WRITE_MSG, wrote, response->len);
+	wrote = write(fd, response->s, response->len);
+	if (wrote < response->len) {
+		printf(WRITE_MSG, wrote, response->len);
 	}
 	//printf("===SUCCESS===\n%s\n", response->s);
 
@@ -272,7 +273,7 @@ int read_request_line(int fd, char* methodbuf, char* urlbuf) {
 	requestline = readline_to_dynstr(fd);
 	if (requestline == NULL) { return parsed; }
 	printf(RECIEVED_MSG, requestline->s);
-	parsed = sscanf(requestline->s,"%s %s", methodbuf, urlbuf);
+	parsed = sscanf(requestline->s, REQLINE_TEMPLATE, methodbuf, urlbuf);
 	free_dynstr(requestline);
 	return parsed;
 }

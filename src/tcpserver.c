@@ -134,7 +134,7 @@ void* runapp(void* arg_ptr) {
 	runapp_arg_t* arg = arg_ptr;
 	arg->app->run(arg->fd, arg->app->args);
 
-	shutdown(arg->fd, SHUT_RDWR);
+	shutdown(arg->fd, SHUT_WR);
 	close(arg->fd);
 	//free(arg->thread); // This line causes seg fault??
 	free(arg);
