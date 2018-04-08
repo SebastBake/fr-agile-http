@@ -57,9 +57,9 @@
 #define MIMETYPE_MAXLEN strlen(MIMETYPE_JS) 
 #define HTTP_VERSION_LEN 16
 #define URL_LEN 256
-#define WRITE_MSG "Incomplete write: %d of %d bytes\n"
 #define RECIEVED_MSG "Recieved request: %s\n"
 #define REQLINE_TEMPLATE "%s %s %*s"
+#define WRITE_ERR -1
 
 typedef struct {
 	char* files;
@@ -195,7 +195,7 @@ char* http_err_to_msg(int errcode) {
 // Send an error response
 void http_err(int fd, int errcode) {
 
-	int wrote = 0;
+	int wrote = 0, wrotesum = 0;
 	dynstr_t* response = new_dynstr();
 	dynstr_t* content = new_dynstr();
 	char* error_msg_print = http_err_to_msg(errcode);
@@ -210,9 +210,10 @@ void http_err(int fd, int errcode) {
 	dynstr_onto_dynstr(response, content);
 
 	// Write response to fd
-	wrote = write(fd, response->s, response->len);
-	if (wrote < response->len) {
-		printf(WRITE_MSG, wrote, response->len);
+	while (wrotesum < response->len) {
+		wrote = write(fd, response->s+wrotesum, response->len-wrotesum);
+		if (wrote == WRITE_ERR) { break; } // Give up writing to socket
+		wrotesum +=wrote;
 	}
 	//printf("===ERROR: %d===\n%s\n", errcode, response->s);
 
@@ -226,7 +227,7 @@ void send_file(int fd, char* filename) {
 
 	assert(filename != NULL);
 
-	int wrote = 0;
+	int wrote = 0, wrotesum = 0;
 	dynstr_t* content = NULL;
 	dynstr_t* response = NULL;
 	FILE* fp = NULL;
@@ -249,9 +250,10 @@ void send_file(int fd, char* filename) {
 	dynstr_onto_dynstr(response, content);
 
 	// Sends
-	wrote = write(fd, response->s, response->len);
-	if (wrote < response->len) {
-		printf(WRITE_MSG, wrote, response->len);
+	while (wrotesum < response->len) {
+		wrote = write(fd, response->s+wrotesum, response->len-wrotesum);
+		if (wrote == WRITE_ERR) { break; } // Give up writing to socket
+		wrotesum +=wrote;
 	}
 	//printf("===SUCCESS===\n%s\n", response->s);
 
