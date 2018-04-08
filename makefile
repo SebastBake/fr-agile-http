@@ -10,7 +10,7 @@
 CC=gcc
 CFLAGS=-Wall
 OUT=bin/server
-SRC=src/httpserver.o src/tcpserver.o src/main.o
+SRC=src/dynstr.o src/httpserver.o src/tcpserver.o src/main.o
 
 all: clean compile
 

@@ -6,8 +6,9 @@
  *
  ***************************************************************************/
 
-#ifndef HTTPSERVER_H
+#ifndef __HTTPSERVER_H__
 
-void httpserve(unsigned short port, char* files);
+// Starts the http server
+void servehttp(unsigned short port, char* files);
 
 #endif

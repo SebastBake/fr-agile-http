@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
 	printf(STARTING_MSG, files, port);
 
 	// Start server
-	httpserve(port, files);
+	servehttp(port, files);
 
 	return EXIT_SUCCESS;
 }

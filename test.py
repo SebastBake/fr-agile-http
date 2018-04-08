@@ -7,14 +7,15 @@ import sys
 
 
 BUFSIZE = 256
-TOSEND = ("The aim of this project is to increase your familiarity with socket program"
+"""TOSEND = ("The aim of this project is to increase your familiarity with socket program"
 	+ "ming, multi-threading, and the HTTP protocol. Your task is to write a basic "
 	+ "HTTP server that responds correctly to a limited set of GET requests. The "
 	+ "HTTP server must return valid response headers for a range of fles and "
 	+ "paths. "
 	+ "Your HTTP Server must be written in C. Submissions that do not compile "
 	+ "and run on a NeCTAR instance may receive zero marks. You must write your "
-	+ "own HTTP handling code, you may not use existing HTTP libraries.")
+	+ "own HTTP handling code, you may not use existing HTTP libraries.")"""
+TOSEND = ("GET /hi.html HTTP/1.1\r\n")
 
 
 def connect(addr):

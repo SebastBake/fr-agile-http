@@ -17,140 +17,141 @@
 #include <unistd.h>
 #include "tcpserver.h"
 
-#define LISTENQ_LEN 5
+#define LISTENQ_LEN 20
+#define PORT_DIGITS 6
+
 #define SOCK_ERR -1
 #define GETADDRINFO_SUCCESS 0
-#define PORTSTR_LEN 32
-
-#define GETADDRINFO_ERRSTR "Failed to get address info: "
-#define SOCK_CREATE_ERRSTR "Failed to create socket: "
-#define SOCK_BIND_ERRSTR "Failed to bind to socket: "
-
-typedef struct run_handler_arg {
-	handlerfunc_t* handler;
-	unsigned int fd;
-} run_handler_arg_t;
-
-/* Private function declarations
- ***************************************************************************/
-
-int init_server(unsigned short port);
-struct addrinfo* host_addrinfo(unsigned short port);
-void sock_err(unsigned short port);
-void handle_connection(handlerfunc_t* handler,  unsigned int fd);
-void *run_handler(void* args);
+#define ERR_MSG "A TCP server error occurred"
 
 
-/* Private function implementations
- ***************************************************************************/
+typedef struct {
+	app_t* app;
+	int fd;
+	pthread_t* thread;
+} runapp_arg_t;
 
-struct addrinfo* host_addrinfo(unsigned short port) {
-	int addrinfo_status;
+struct addrinfo* gethostaddrinfo(unsigned short port);
+struct addrinfo gethostaddrinfohints();
+int initserver(unsigned short port);
+void socketerrcheck(int status);
+void* runapp(void* arg);
+void startappthread(int fd, app_t* app);
+
+
+/***************************************************************************
+ *    Public functions
+ */
+
+
+// Start the server and allow the app to handle connections
+void servetcp(unsigned short port, app_t* app) {
+
+	int listen_fd, conn_fd;
+	struct sockaddr_storage conn_addr;
+	unsigned int conn_len = sizeof(conn_addr);
+
+	listen_fd = initserver(port);
+	for (;;) {
+		conn_fd = accept(listen_fd, (struct sockaddr*) &conn_addr, &conn_len);
+		socketerrcheck(conn_fd);
+		startappthread(conn_fd, app);
+	}
+}
+ 
+
+/***************************************************************************
+ *    Private functions
+ */
+
+
+// Gets the hints to get the socket address info for the hosting machine
+struct addrinfo gethostaddrinfohints() {
 	struct addrinfo hints;
-	struct addrinfo* ai; // socket address info
-	char portstr[PORTSTR_LEN];
-
 	memset(&hints, 0, (int)sizeof(hints));
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE;
-	
-	sprintf(portstr ,"%d", port);
-	printf("DEBUG: Getting host address info...\n");
-	addrinfo_status = getaddrinfo(NULL, portstr, &hints, &ai);
-	if (addrinfo_status != GETADDRINFO_SUCCESS) {
-		printf("%s",gai_strerror(addrinfo_status));
+	return hints;
+}
+
+
+// Handles errors returned by socket.h functions
+void socketerrcheck(int status) {
+
+	if (status == SOCK_ERR) {
+		perror(ERR_MSG);
+		exit(EXIT_FAILURE);
+	}
+}
+
+
+// Gets the socket address info for the hosting machine
+struct addrinfo* gethostaddrinfo(unsigned short port) {
+
+	int status;
+	char portstr[PORT_DIGITS];
+	struct addrinfo* hostaddrinfo;
+	struct addrinfo addrinfohints = gethostaddrinfohints();
+
+	sprintf(portstr ,"%d", port); // convert port int to str
+
+	status = getaddrinfo(NULL, portstr, &addrinfohints, &hostaddrinfo);
+	if (status != GETADDRINFO_SUCCESS) {
+		printf("%s", gai_strerror(status));
 		exit(EXIT_FAILURE);
 	}
 
 	// TODO: walk through linked list to get a correct result?
-
-	return ai;
+	return hostaddrinfo;
 }
 
 
-int init_server(unsigned short port) {
-	//TODO: improve error handling
+// Initialises the server
+int initserver(unsigned short port) {
 
-	int bind_err, listen_err;
-	int listen_fd;
-	struct addrinfo* ai;
+	int fd;
+	int bind_status, listen_status;
+	struct addrinfo* ai = gethostaddrinfo(port);
 
-	// Get address info
-	ai = host_addrinfo(port);
+	fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+	socketerrcheck(fd);
 
-	// Open Socket
-	printf("DEBUG: Creating socket...\n"); // TODO: make a better debug function
-	listen_fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-	if (listen_fd == SOCK_ERR) {
-		perror(SOCK_CREATE_ERRSTR);
-		exit(EXIT_FAILURE);
-	}
+	bind_status = bind(fd, ai->ai_addr, ai->ai_addrlen);
+	socketerrcheck(bind_status);
 
-	// Bind to port
-	printf("DEBUG: Binding...\n");
-	bind_err = bind(listen_fd, ai->ai_addr, ai->ai_addrlen);
-	if (bind_err == SOCK_ERR) {
-		perror(SOCK_BIND_ERRSTR);
-		exit(EXIT_FAILURE);
-	}
-
-	// Start listening
-	printf("DEBUG: Listening...\n");
-	listen_err = listen(listen_fd, LISTENQ_LEN);
-	if (listen_err == SOCK_ERR) {
-		perror(SOCK_BIND_ERRSTR);
-		exit(EXIT_FAILURE);
-	}
+	listen_status = listen(fd, LISTENQ_LEN);
+	socketerrcheck(listen_status);
 
 	freeaddrinfo(ai);
-
-	return listen_fd;
+	return fd;
 }
 
 
-void* run_handler(void* arg) {
+// Runs the app. NOTE: argument and return types are void* because this
+// function is called by pthread_create(...)
+void* runapp(void* arg_ptr) {
 
-	run_handler_arg_t* cast_arg = arg;
-	unsigned int fd = cast_arg->fd;
-	cast_arg->handler(fd);
+	runapp_arg_t* arg = arg_ptr;
+	arg->app->run(arg->fd, arg->app->args);
 
-	printf("DEBUG: Closing connection...\n");
-	close(fd);
+	shutdown(arg->fd, SHUT_RD);
+	close(arg->fd);
+	//free(arg->thread); // This line causes a seg fault??
+	free(arg);
 	return NULL;
 }
 
 
-/* Public function implementations
- ***************************************************************************/
+// Start the app in new thread
+void startappthread(int fd, app_t* app) {
 
-// Starts the server
-int tcpserve(unsigned short port, handlerfunc_t* handler) {
+	runapp_arg_t* runapp_arg = (runapp_arg_t*) malloc(sizeof(runapp_arg_t));
+	assert(runapp_arg != NULL);
 
-	int listen_fd;
-	int conn_fd;
-	struct sockaddr_storage conn_addr;
-	unsigned int conn_len = sizeof(conn_addr);
-	pthread_t newthread;
-	run_handler_arg_t run_handler_arg;
-
-	listen_fd = init_server(port);
-	printf("DEBUG: Accepting...\n");
-	while (1){
-		conn_fd = accept(listen_fd, (struct sockaddr*) &conn_addr, &conn_len);
-		if (conn_fd == SOCK_ERR) {
-			perror("ERROR on accept");// TODO: fix error handling
-			exit(EXIT_FAILURE);
-		}
-		// TODO: Clean up threading (Possibly move into another file)
-		// TODO: (related) dynamically allocate args so they aren't
-		// TODO: overwritten with multiple simultaneous connections
-		// TODO: Fix naming of handlers and stuff - too 
-		run_handler_arg.handler = handler;
-		run_handler_arg.fd = conn_fd;
-		pthread_create(&newthread, NULL, &run_handler, &run_handler_arg);
-	}
-
-	return 0;
+	runapp_arg->app = app;
+	runapp_arg->fd = fd;
+	runapp_arg->thread = (pthread_t*) malloc(sizeof(pthread_t));
+	assert(runapp_arg->thread!=NULL);
+	pthread_create(runapp_arg->thread, NULL, &runapp, runapp_arg);
 }
-
