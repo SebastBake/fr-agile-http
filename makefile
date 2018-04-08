@@ -8,11 +8,11 @@
 
 
 CC=gcc
-CFLAGS=-Wall -pthread
-OUT=bin/server
+CFLAGS=-Wall -pthread -O2
+OUT=server
 SRC=src/dynstr.o src/httpserver.o src/tcpserver.o src/main.o
 
-all: clean compile
+all: clean compile clean
 
 compile: $(SRC)
 	$(CC) $(SRC) $(CFLAGS) -o $(OUT);

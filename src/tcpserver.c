@@ -102,7 +102,7 @@ struct addrinfo* gethostaddrinfo(unsigned short port) {
 		exit(EXIT_FAILURE);
 	}
 
-	// TODO: walk through linked list to get a correct result?
+	// TODO: walk through linked list to get a correct result
 	return hostaddrinfo;
 }
 
@@ -135,9 +135,9 @@ void* runapp(void* arg_ptr) {
 	runapp_arg_t* arg = arg_ptr;
 	arg->app->run(arg->fd, arg->app->args);
 
-	shutdown(arg->fd, SHUT_RD);
+	shutdown(arg->fd, SHUT_RDWR);
 	close(arg->fd);
-	//free(arg->thread); // This line causes a seg fault??
+	//free(arg->thread); // This line causes seg fault??
 	free(arg);
 	return NULL;
 }
