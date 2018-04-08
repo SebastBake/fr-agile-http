@@ -12,7 +12,7 @@ CFLAGS=-Wall -pthread
 OUT=server
 SRC=src/dynstr.o src/httpserver.o src/tcpserver.o src/main.o
 
-all: clean compile clean
+all: compile
 
 compile: $(SRC)
 	$(CC) $(SRC) $(CFLAGS) -o $(OUT);
