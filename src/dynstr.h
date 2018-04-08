@@ -31,5 +31,4 @@ void str_onto_dynstr(dynstr_t* s, char* str);
 void dynstr_onto_dynstr(dynstr_t* s, dynstr_t* str);
 void char_onto_dynstr(dynstr_t* s, char c);
 
-
 #endif
