@@ -207,7 +207,7 @@ void http_err(int fd, int errcode) {
 	dynstr_onto_dynstr(response, content);
 
 	// Write response to fd
-	wrote = write(fd, response->s+wrote, response->len-wrote);
+	wrote = write(fd, response->s, response->len);
 	//printf("===ERROR: %d===\n%s\n", errcode, response->s);
 
 	// Cleanup
@@ -243,7 +243,8 @@ void send_file(int fd, char* filename) {
 	dynstr_onto_dynstr(response, content);
 
 	// Sends
-	wrote = write(fd, response->s+wrote, response->len-wrote);
+	wrote = write(fd, response->s, response->len);
+
 	//printf("===SUCCESS===\n%s\n", response->s);
 
 	// Cleanup
