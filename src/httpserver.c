@@ -208,7 +208,7 @@ void http_err(int fd, int errcode) {
 
 	// Write response to fd
 	wrote = write(fd, response->s+wrote, response->len-wrote);
-	printf("===ERROR: %d===\n%s\n", errcode, response->s);
+	//printf("===ERROR: %d===\n%s\n", errcode, response->s);
 
 	// Cleanup
 	free_dynstr(response);
@@ -244,7 +244,7 @@ void send_file(int fd, char* filename) {
 
 	// Sends
 	wrote = write(fd, response->s+wrote, response->len-wrote);
-	printf("===SUCCESS===\n%s\n", response->s);
+	//printf("===SUCCESS===\n%s\n", response->s);
 
 	// Cleanup
 	free_dynstr(response);

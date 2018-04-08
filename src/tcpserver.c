@@ -24,7 +24,6 @@
 #define GETADDRINFO_SUCCESS 0
 #define ERR_MSG "A TCP server error occurred"
 
-
 typedef struct {
 	app_t* app;
 	int fd;
@@ -134,7 +133,6 @@ void* runapp(void* arg_ptr) {
 
 	runapp_arg_t* arg = arg_ptr;
 	arg->app->run(arg->fd, arg->app->args);
-	printf("completed a request\n");
 
 	shutdown(arg->fd, SHUT_RDWR);
 	close(arg->fd);

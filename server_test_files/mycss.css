@@ -1,0 +1,11 @@
+
+@keyframes myanimation {
+    from {color: red;}
+    to {color: black;}
+}
+
+h1 {
+    animation-name: myanimation;
+    animation-duration: 0.5s;
+    animation-iteration-count: infinite;
+}
