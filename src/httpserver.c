@@ -309,6 +309,7 @@ void appfunc(int fd, void* args) {
 		char filename[strlen(appargs->files)+strlen(url)+1];
 		strcpy(filename, appargs->files);
 		strcpy(filename+strlen(filename), url);
+		//printf("filename: %s\n", filename);
 
 		// send file
 		send_file(fd, filename);
