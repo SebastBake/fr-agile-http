@@ -19,3 +19,6 @@ compile: $(SRC)
 
 clean:
 	rm -f src/*.o; rm $(OUT);
+
+run:
+	./server 8080 server_test_files;
