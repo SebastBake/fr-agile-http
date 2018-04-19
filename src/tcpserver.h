@@ -12,11 +12,6 @@
  * appfunc_t so that this tcp library can run the app */
 typedef void appfunc_t(int fd, void* args);
 
-typedef struct {
-	appfunc_t* run; // Function to run the application
-	void* args; // arguments for the application
-} app_t;
-
-void servetcp(unsigned short port, app_t* app);
+void servetcp(unsigned short port, appfunc_t* appfunc, void* appargs);
 
 #endif

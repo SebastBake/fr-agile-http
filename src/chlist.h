@@ -1,6 +1,6 @@
 /***************************************************************************
  *
- *   File        : dynstr.h
+ *   File        : chlist.h
  *   Student Id  : 757931
  *   Name        : Sebastian Baker
  *
@@ -14,21 +14,20 @@
 #define NULLBYTE '\0'
 #define LF '\n'
 #define CR '\r'
-#define CRLF "\r\n"
 
 typedef struct {
 	char* s;
 	unsigned int size;
 	unsigned int len;
-} dynstr_t;
+} chlist_t;
 
-dynstr_t* new_dynstr();
-dynstr_t* file_into_dynstr(FILE* fp);
-dynstr_t* readline_to_dynstr(int fd);
-void free_dynstr(dynstr_t* s);
-void resize_dynstr(dynstr_t* s, unsigned int size);
-void str_onto_dynstr(dynstr_t* s, char* str);
-void dynstr_onto_dynstr(dynstr_t* s, dynstr_t* str);
-void char_onto_dynstr(dynstr_t* s, char c);
+chlist_t* new_chlist();
+chlist_t* file_into_chlist(FILE* fp);
+chlist_t* readline_to_chlist(int fd);
+void free_chlist(chlist_t* s);
+void resize_chlist(chlist_t* s, unsigned int size);
+void str_onto_chlist(chlist_t* s, char* str);
+void chlist_onto_chlist(chlist_t* s, chlist_t* str);
+void char_onto_chlist(chlist_t* s, char c);
 
 #endif

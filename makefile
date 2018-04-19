@@ -10,9 +10,7 @@
 CC=gcc
 CFLAGS=-Wall -pthread
 OUT=server
-SRC=src/dynstr.o src/httpserver.o src/tcpserver.o src/main.o
-
-all: compile
+SRC=src/chlist.o src/tcpserver.o src/httpserver.o src/main.o
 
 compile: $(SRC)
 	$(CC) $(SRC) $(CFLAGS) -o $(OUT);
@@ -20,5 +18,5 @@ compile: $(SRC)
 clean:
 	rm -f src/*.o; rm $(OUT);
 
-run:
-	./server 8080 server_test_files;
+test: compile
+	test_script.sh $(OUT) 8080

@@ -22,20 +22,19 @@
 
 #define SOCK_ERR -1
 #define GETADDRINFO_SUCCESS 0
-#define ERR_MSG "A TCP server error occurred"
+#define ERR_MSG "A TCP server error occurred:\n"
 
 typedef struct {
-	app_t* app;
+	appfunc_t* appfunc;
+	void* appargs;
 	int fd;
-	pthread_t* thread;
-} runapp_arg_t;
+} thread_arg_t;
 
 struct addrinfo* gethostaddrinfo(unsigned short port);
 struct addrinfo gethostaddrinfohints();
 int initserver(unsigned short port);
 void socketerrcheck(int status);
-void* runapp(void* arg);
-void startappthread(int fd, app_t* app);
+void* thread_func(void* arg);
 
 
 /***************************************************************************
@@ -44,8 +43,11 @@ void startappthread(int fd, app_t* app);
 
 
 // Start the server and allow the app to handle connections
-void servetcp(unsigned short port, app_t* app) {
+void servetcp(unsigned short port, appfunc_t* appfunc, void* appargs) {
 
+	int err;
+	thread_arg_t* thread_arg;
+	pthread_t* thread;
 	int listen_fd, conn_fd;
 	struct sockaddr_storage conn_addr;
 	unsigned int conn_len = sizeof(conn_addr);
@@ -54,7 +56,24 @@ void servetcp(unsigned short port, app_t* app) {
 	for (;;) {
 		conn_fd = accept(listen_fd, (struct sockaddr*) &conn_addr, &conn_len);
 		socketerrcheck(conn_fd);
-		startappthread(conn_fd, app);
+		
+		thread_arg = (thread_arg_t*) malloc(sizeof(thread_arg_t));
+		assert(thread_arg != NULL);
+		thread_arg->appfunc = appfunc;
+		thread_arg->appargs = appargs;
+		thread_arg->fd = conn_fd;
+		
+		thread = (pthread_t*) malloc(sizeof(pthread_t));
+		assert(thread!=NULL);
+
+		err = pthread_create(thread, NULL, &thread_func, thread_arg);
+		err = err || pthread_detach(*thread);
+		if(err) {
+			printf(ERR_MSG);
+			shutdown(conn_fd, SHUT_RDWR);
+			close(conn_fd);
+			free(thread_arg);
+		}
 	}
 }
  
@@ -77,7 +96,6 @@ struct addrinfo gethostaddrinfohints() {
 
 // Handles errors returned by socket.h functions
 void socketerrcheck(int status) {
-
 	if (status == SOCK_ERR) {
 		perror(ERR_MSG);
 		exit(EXIT_FAILURE);
@@ -129,34 +147,12 @@ int initserver(unsigned short port) {
 
 // Runs the app. NOTE: argument and return types are void* because this
 // function is called by pthread_create(...)
-void* runapp(void* arg_ptr) {
-
-	runapp_arg_t* arg = arg_ptr;
-	arg->app->run(arg->fd, arg->app->args);
-
-	shutdown(arg->fd, SHUT_WR);
-	close(arg->fd);
-	//free(arg->thread); // This line causes seg fault??
+void* thread_func(void* arg) {
+	
+	thread_arg_t* thread_arg = arg;
+	thread_arg->appfunc(thread_arg->fd, thread_arg->appargs);
+	shutdown(thread_arg->fd, SHUT_WR);
+	close(thread_arg->fd);
 	free(arg);
-	return NULL;
-}
-
-
-// Start the app in new thread
-void startappthread(int fd, app_t* app) {
-
-	int failed;
-	runapp_arg_t* runapp_arg = (runapp_arg_t*) malloc(sizeof(runapp_arg_t));
-	assert(runapp_arg != NULL);
-
-	runapp_arg->app = app;
-	runapp_arg->fd = fd;
-	runapp_arg->thread = (pthread_t*) malloc(sizeof(pthread_t));
-	assert(runapp_arg->thread!=NULL);
-	failed = pthread_create(runapp_arg->thread, NULL, &runapp, runapp_arg);
-	if(failed) {
-		shutdown(fd, SHUT_RDWR);
-		close(fd);
-		free(runapp_arg);
-	}
+	pthread_exit(NULL);
 }

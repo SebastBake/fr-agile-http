@@ -11,7 +11,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <assert.h>
-#include "dynstr.h"
+#include "chlist.h"
 #include "httpserver.h"
 #include "tcpserver.h"
 
@@ -50,6 +50,7 @@
 
 #define DOT '.'
 #define SPACE " "
+#define CRLF "\r\n"
 #define READ_BINARY "rb"
 #define REQINE_PARSE 2
 #define INT_DIGITS 10
@@ -61,21 +62,19 @@
 #define REQLINE_TEMPLATE "%s %s %*s"
 #define WRITE_ERR -1
 
-typedef struct {
-	char* files;
-} appargs_t;
-
-void append_date_and_server_headers(dynstr_t* s);
-void append_contentlen_header(dynstr_t* s, int contentlen);
-void append_mimetype_header(dynstr_t* s, char* filename);
-void append_statusline(dynstr_t* s, char* status_str);
+void append_date_and_server_headers(chlist_t* s);
+void append_contentlen_header(chlist_t* s, int contentlen);
+void append_mimetype_header(chlist_t* s, char* filename);
+void append_statusline(chlist_t* s, char* status_str);
 
 void http_err(int fd, int errcode);
 void send_file(int fd, char* filename);
-void appfunc(int fd, void* args);
+void httpapp(int fd, void* args);
 
 int read_request_line(int fd, char* methodbuf, char* urlbuf);
 char* http_err_to_msg(int errcode);
+
+void debugprint(char* msg);
 
 
 /***************************************************************************
@@ -86,15 +85,8 @@ char* http_err_to_msg(int errcode);
 // files -- root folder from which to serve files
 // port	 -- port on which to start the server
 void servehttp(unsigned short port, char* files) {
-
 	assert(files!=NULL);
-
-	app_t app;
-	appargs_t args;
-	args.files = files;
-	app.run = &appfunc;
-	app.args = &args;
-	servetcp(port, &app);
+	servetcp(port, &httpapp, files);
 }
 
 /***************************************************************************
@@ -102,26 +94,26 @@ void servehttp(unsigned short port, char* files) {
  */
 
 // Appends date and server name headers to the dynamic string
-void append_date_and_server_headers(dynstr_t* s) {
+void append_date_and_server_headers(chlist_t* s) {
 
 	assert(s!=NULL);
 
-	str_onto_dynstr(s, DATE_HEADER);
-	str_onto_dynstr(s, SERVER_HEADER);
+	str_onto_chlist(s, DATE_HEADER);
+	str_onto_chlist(s, SERVER_HEADER);
 }
 
 // Appends Content-Length header to the dynamic string
-void append_contentlen_header(dynstr_t* s, int contentlen) {
+void append_contentlen_header(chlist_t* s, int contentlen) {
 
 	assert(s!=NULL);
 
 	char header[strlen(CONTENT_LEN_HEADER) + INT_DIGITS + 1];
 	sprintf(header, CONTENT_LEN_HEADER, contentlen);
-	str_onto_dynstr(s, header);
+	str_onto_chlist(s, header);
 }
 
 // Appends Content-Type header to the dynamic string
-void append_mimetype_header(dynstr_t* s, char* filename) {
+void append_mimetype_header(chlist_t* s, char* filename) {
 
 	assert(filename != NULL);
 	assert(s!=NULL);
@@ -160,19 +152,19 @@ void append_mimetype_header(dynstr_t* s, char* filename) {
 		sprintf(header, MIMETYPE_HEADER, MIMETYPE_PLAIN);
 	}
 	
-	str_onto_dynstr(s, header);
+	str_onto_chlist(s, header);
 }
 
 // Appends Content-Type header to the dynamic string
-void append_statusline(dynstr_t* s, char* status_str) {
+void append_statusline(chlist_t* s, char* status_str) {
 
 	assert(s!=NULL);
 	assert(status_str!=NULL);
 
-	str_onto_dynstr(s, HTTP_VERSION);
-	str_onto_dynstr(s, SPACE);
-	str_onto_dynstr(s, status_str);
-	str_onto_dynstr(s, CRLF);
+	str_onto_chlist(s, HTTP_VERSION);
+	str_onto_chlist(s, SPACE);
+	str_onto_chlist(s, status_str);
+	str_onto_chlist(s, CRLF);
 }
 
 // Maps http error codes to messages
@@ -196,18 +188,18 @@ char* http_err_to_msg(int errcode) {
 void http_err(int fd, int errcode) {
 
 	int wrote = 0, wrotesum = 0;
-	dynstr_t* response = new_dynstr();
-	dynstr_t* content = new_dynstr();
+	chlist_t* response = new_chlist();
+	chlist_t* content = new_chlist();
 	char* error_msg_print = http_err_to_msg(errcode);
 
 	// Compose response
 	append_statusline(response, error_msg_print);
-	str_onto_dynstr(content, error_msg_print);
+	str_onto_chlist(content, error_msg_print);
 	append_date_and_server_headers(response);
 	append_contentlen_header(response, content->len);
 	append_mimetype_header(response, MIMETYPE_HTML_X);
-	str_onto_dynstr(response, CRLF);
-	dynstr_onto_dynstr(response, content);
+	str_onto_chlist(response, CRLF);
+	chlist_onto_chlist(response, content);
 
 	// Write response to fd
 	while (wrotesum < response->len) {
@@ -218,8 +210,8 @@ void http_err(int fd, int errcode) {
 	//printf("===ERROR: %d===\n%s\n", errcode, response->s);
 
 	// Cleanup
-	free_dynstr(response);
-	free_dynstr(content);
+	free_chlist(response);
+	free_chlist(content);
 }
 
 // Sends a file over http
@@ -228,8 +220,8 @@ void send_file(int fd, char* filename) {
 	assert(filename != NULL);
 
 	int wrote = 0, wrotesum = 0;
-	dynstr_t* content = NULL;
-	dynstr_t* response = NULL;
+	chlist_t* content = NULL;
+	chlist_t* response = NULL;
 	FILE* fp = NULL;
 
 	// Open & load the file
@@ -240,14 +232,14 @@ void send_file(int fd, char* filename) {
 	}
 
 	// Compose http response
-	response = new_dynstr();
-	content = file_into_dynstr(fp);
+	response = new_chlist();
+	content = file_into_chlist(fp);
 	append_statusline(response, STATUS_200_PRINT);
 	append_date_and_server_headers(response);
 	append_contentlen_header(response, content->len);
 	append_mimetype_header(response, filename);
-	str_onto_dynstr(response, CRLF);
-	dynstr_onto_dynstr(response, content);
+	str_onto_chlist(response, CRLF);
+	chlist_onto_chlist(response, content);
 
 	// Sends
 	while (wrotesum < response->len) {
@@ -258,8 +250,8 @@ void send_file(int fd, char* filename) {
 	//printf("===SUCCESS===\n%s\n", response->s);
 
 	// Cleanup
-	free_dynstr(response);
-	free_dynstr(content);
+	free_chlist(response);
+	free_chlist(content);
 	fclose(fp);
 }
 
@@ -269,24 +261,24 @@ int read_request_line(int fd, char* methodbuf, char* urlbuf) {
 	assert(methodbuf!=NULL);
 	assert(urlbuf!=NULL);
 
-	dynstr_t* requestline = NULL;
+	chlist_t* requestline = NULL;
 	int parsed = 0;
 
-	requestline = readline_to_dynstr(fd);
+	requestline = readline_to_chlist(fd);
 	if (requestline == NULL) { return parsed; }
 	printf(RECIEVED_MSG, requestline->s);
 	parsed = sscanf(requestline->s, REQLINE_TEMPLATE, methodbuf, urlbuf);
-	free_dynstr(requestline);
+	free_chlist(requestline);
 	return parsed;
 }
 
 // Serves files to a file descriptor over http
 // fd -- File descripter to read/write
-void appfunc(int fd, void* args) {
+void httpapp(int fd, void* args) {
 
 	assert(args!=NULL);
 
-	appargs_t* appargs = (appargs_t*)args;
+	char* files = (char*)args;
 	char method[METHOD_LEN];
 	char url[URL_LEN];
 
@@ -308,8 +300,8 @@ void appfunc(int fd, void* args) {
 		http_err(fd, STATUS_501);
 	} else {
 		// make a filename string
-		char filename[strlen(appargs->files)+strlen(url)+1];
-		strcpy(filename, appargs->files);
+		char filename[strlen(files)+strlen(url)+1];
+		strcpy(filename, files);
 		strcpy(filename+strlen(filename), url);
 		//printf("filename: %s\n", filename);
 
