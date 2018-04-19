@@ -14,7 +14,6 @@
 #define NUM_ARGS 3
 #define INPUT_MSG "USAGE EXAMPLE: ./server [port number] [path to web root]\n"
 #define STARTING_MSG "Starting server for files at %s, on port %d\n"
-#define WTF_MSG "What??\n"
 
 int main(int argc, char *argv[]) {
 
@@ -30,6 +29,5 @@ int main(int argc, char *argv[]) {
 	// Start server
 	servehttp(port, files);
 
-	printf(WTF_MSG);
-	return EXIT_SUCCESS;
+	return 0;
 }

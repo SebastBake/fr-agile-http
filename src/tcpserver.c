@@ -15,9 +15,10 @@
 #include <string.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <signal.h>
 #include "tcpserver.h"
 
-#define LISTENQ_LEN 3
+#define LISTENQ_LEN 20
 #define PORT_DIGITS 6
 
 #define SOCK_ERR -1
@@ -35,6 +36,8 @@ struct addrinfo gethostaddrinfohints();
 int initserver(unsigned short port);
 void socketerrcheck(int status);
 void* thread_func(void* arg);
+void sighandler(int signo);
+void setsighandler();
 
 
 /***************************************************************************
@@ -140,6 +143,8 @@ int initserver(unsigned short port) {
 	listen_status = listen(fd, LISTENQ_LEN);
 	socketerrcheck(listen_status);
 
+	setsighandler();
+
 	freeaddrinfo(ai);
 	return fd;
 }
@@ -155,4 +160,19 @@ void* thread_func(void* arg) {
 	close(thread_arg->fd);
 	free(arg);
 	pthread_exit(NULL);
+}
+
+// Handles ctrl-c signal
+void sighandler(int signo) {
+	if (signo == SIGINT) {
+		pthread_exit(NULL);
+	}
+}
+
+// Handles ctrl-c signal
+void setsighandler() {
+	struct sigaction sa;
+	memset(&sa, 0, sizeof(struct sigaction));
+	sa.sa_handler = sighandler;
+	assert(!sigaction(SIGINT, &sa, NULL));
 }

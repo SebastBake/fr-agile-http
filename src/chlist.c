@@ -16,6 +16,8 @@
 #define DEFAULT_SIZE 8
 #define ZERO_BYTES 0
 #define READONLY "r"
+#define INVALID_FILENAME '/'
+
 
 // Creates a new empty dynamic string
 chlist_t* new_chlist() {
@@ -33,10 +35,14 @@ chlist_t* new_chlist() {
 	return s;
 }
 
+
 // Creates a chlist and reads a file into it
 chlist_t* file_into_chlist(char* filepath) {
 
 	assert(filepath!=NULL);
+	if (filepath[strlen(filepath)] == INVALID_FILENAME) {
+		return NULL;
+	}
 
 	FILE* fp = NULL;
 	
@@ -68,6 +74,7 @@ chlist_t* file_into_chlist(char* filepath) {
 	return s;
 }
 
+
 // Reads a single line from fd
 chlist_t* readline_to_chlist(int fd) {
 	
@@ -95,19 +102,19 @@ chlist_t* readline_to_chlist(int fd) {
 	return line;
 }
 
+
 // Resizes a chlist
-void resize_chlist(chlist_t* s, unsigned long newsize) {
+void resize_chlist(chlist_t* s, int newsize) {
 	
 	assert(s!=NULL);
 
-	char* tip = NULL;
 	s->size = newsize;
 	s->s = (char*)realloc(s->s, s->size);
 	assert(s->s!=NULL);
 
-	tip = s->s + s->len;
-	memset(tip, NULLBYTE, s->size-s->len);
+	memset(s->s + s->len, NULLBYTE, s->size-s->len);
 }
+
 
 // Free memory for a chlist
 void free_chlist(chlist_t* s) {
@@ -115,6 +122,7 @@ void free_chlist(chlist_t* s) {
 	free(s->s);
 	free(s);
 }
+
 
 // Appends a string onto the end of a chlist
 void str_onto_chlist(chlist_t* s, char* str) {
@@ -135,6 +143,7 @@ void str_onto_chlist(chlist_t* s, char* str) {
 	strcpy(tip, str);
 	s->len += strlen(str);
 }
+
 
 // Appends a dystr onto the end of a chlist
 void chlist_onto_chlist(chlist_t* s, chlist_t* str) {
@@ -157,6 +166,7 @@ void chlist_onto_chlist(chlist_t* s, chlist_t* str) {
 	memcpy((void*)tip, (void*)str->s, str->len);
 	s->len += str->len;
 }
+
 
 // Append a char onto a chlist
 void char_onto_chlist(chlist_t* s, char c) {

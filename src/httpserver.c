@@ -16,60 +16,57 @@
 #include "httpserver.h"
 #include "tcpserver.h"
 
-#define METHOD_GET "GET"
-#define HTTP_VERSION "HTTP/1.0"
-#define CONTENT_LEN_HEADER "Content-Length: %d\r\n"
-#define MIMETYPE_HEADER "Content-Type: %s\r\n"
-#define SERVER_HEADER "Server: Hal9000\r\n"
-#define DATE_HEADER "Date: Now, Today, This Year\r\n"
+#define DEBUG 0
 
-#define MIMETYPE_JPG_X ".jpg"
-#define MIMETYPE_JPEG_X ".jpeg"
-#define MIMETYPE_HTML_X ".html"
-#define MIMETYPE_PLAIN_X ".txt"
-#define MIMETYPE_JS_X ".js"
-#define MIMETYPE_CSS_X ".css"
-
-#define MIMETYPE_JPEG "image/jpeg"
-#define MIMETYPE_HTML "text/html"
-#define MIMETYPE_PLAIN "text/plain"
-#define MIMETYPE_JS "application/javascript"
-#define MIMETYPE_CSS "text/css"
-#define MIMETYPE_DEFAULT MIMETYPE_PLAIN
-
-#define STATUS_LEN 64
-#define STATUS_400 400
-#define STATUS_404 404
-#define STATUS_200 200
-#define STATUS_501 501
-#define STATUS_414 414
-#define STATUS_400_PRINT "400 Bad Request"
-#define STATUS_404_PRINT "404 Not Found"
-#define STATUS_200_PRINT "200 OK"
-#define STATUS_501_PRINT "501 Not Implemented"
-#define STATUS_414_PRINT "414 URI Too Long"
-
+#define WRITE_ERR -1
 #define DOT '.'
 #define SPACE " "
 #define CRLF "\r\n"
-#define READ_BINARY "rb"
-#define REQINE_PARSE 2
-#define INT_DIGITS 10
-#define METHOD_LEN 8
-#define MIMETYPE_MAXLEN strlen(MIMETYPE_JS) 
-#define HTTP_VERSION_LEN 16
-#define URL_LEN 256
-#define RECIEVED_MSG "Recieved request: %s\n"
-#define REQLINE_TEMPLATE "%s %s %*s"
-#define WRITE_ERR -1
-#define DEBUG 1
+#define SEND_MSG "SENT %d bytes: %s\n"
+#define SEND_FAIL_MSG "SEND FAIL (%d+%d of %d bytes)\n"
+#define SYSYEAR_OFFSET 1900
 
-void append_date_and_server_headers(chlist_t* s);
+#define CONTENT_LEN_HEADER "Content-Length: %d\r\n"
+#define MIMETYPE_HEADER "Content-Type: %s\r\n"
+#define SERVER_HEADER "Server: Hal9000\r\n"
+#define DATE_HEADER "Date: %d:%d:%d:%d:%d:%d GMT\r\n"
+#define MIMETYPE_HEADER_MAXLEN 256
+#define CONTENT_LEN_HEADER_MAXLEN 256
+#define DATE_HEADER_MAXLEN 256
+
+#define METHOD_GET "GET"
+#define HTTP_VERSION "HTTP/1.1"
+#define REQ_TEMPLATE "%s %s %*s"
+#define REQ_PARSE 2
+#define REQ_MSG "Recieved request: %s\n"
+#define HTTP_VERSION_LEN 16
+#define METHOD_LEN 8
+#define URL_LEN 256
+
+#define STATUS_200 "200 OK"
+#define STATUS_400 "400 Bad Request"
+#define STATUS_404 "404 Not Found"
+#define STATUS_414 "414 URI Too Long"
+#define STATUS_501 "501 Not Implemented"
+
+#define NUM_MIMETYPES 6
+#define MIMETYPE_STRUCT struct {char* EXT; char* TYPE; }
+const MIMETYPE_STRUCT MIMETYPES[NUM_MIMETYPES] = {
+	{.EXT=".jpeg", "image/jpeg"},
+	{.EXT=".jpg", "image/jpeg"},
+	{.EXT=".html", "text/html"},
+	{.EXT=".txt", "text/plain"},
+	{.EXT=".js", "application/javascript"},
+	{.EXT=".css", "text/css"}
+};
+
+void append_server_header(chlist_t* s);
+void append_date_header(chlist_t* s);
 void append_contentlen_header(chlist_t* s, int contentlen);
 void append_mimetype_header(chlist_t* s, char* filename);
 void append_statusline(chlist_t* s, char* status_str);
 
-void http_err(int fd, int errcode);
+void http_err(int fd, char* errcode);
 void send_file(int fd, char* filename);
 void httpapp(int fd, void* args);
 void writeall(int fd, chlist_t* chlist);
@@ -84,6 +81,7 @@ void debugprint(char* msg);
  *    Public functions
  */
 
+
 // Serves files over http
 // files -- root folder from which to serve files
 // port	 -- port on which to start the server
@@ -92,30 +90,55 @@ void servehttp(unsigned short port, char* files) {
 	servetcp(port, &httpapp, files);
 }
 
+
 /***************************************************************************
  *    Private functions
  */
 
+
 // Appends date and server name headers to the dynamic string
-void append_date_and_server_headers(chlist_t* s) {
+void append_date_header(chlist_t* s) {
 
 	assert(s!=NULL);
 
-	str_onto_chlist(s, DATE_HEADER);
+	time_t unixtime;
+	time(&unixtime);
+	char header[DATE_HEADER_MAXLEN];
+	struct tm *now = gmtime(&unixtime);
+	assert(now!=NULL);
+
+    sprintf(header, DATE_HEADER,
+    	now->tm_year + SYSYEAR_OFFSET,
+    	now->tm_mon,
+    	now->tm_mday,
+    	now->tm_hour,
+    	now->tm_min,
+    	now->tm_sec
+    	);
+	str_onto_chlist(s, header);
+}
+
+
+// Appends server name headers to the dynamic string
+void append_server_header(chlist_t* s) {
+	assert(s!=NULL);
 	str_onto_chlist(s, SERVER_HEADER);
 }
+
 
 // Appends Content-Length header to the dynamic string
 void append_contentlen_header(chlist_t* s, int contentlen) {
 
 	assert(s!=NULL);
 
-	char header[strlen(CONTENT_LEN_HEADER) + INT_DIGITS + 1];
+	char header[CONTENT_LEN_HEADER_MAXLEN];
 	sprintf(header, CONTENT_LEN_HEADER, contentlen);
 	str_onto_chlist(s, header);
 }
 
+
 // Appends Content-Type header to the dynamic string
+// If extension is unknown, does nothing
 void append_mimetype_header(chlist_t* s, char* filename) {
 
 	assert(filename != NULL);
@@ -124,7 +147,7 @@ void append_mimetype_header(chlist_t* s, char* filename) {
 	int i = 0;
 	int n = strlen(filename);
 	char* extension = NULL;
-	char header[strlen(MIMETYPE_HEADER) + MIMETYPE_MAXLEN + 1];
+	char header[MIMETYPE_HEADER_MAXLEN];
 
 	// get extension
 	for (i=n; i>=0; i--) {
@@ -135,28 +158,14 @@ void append_mimetype_header(chlist_t* s, char* filename) {
 	}
 
 	// Map extension to MIMETYPE
-	if (!strcmp(extension, MIMETYPE_JPG_X)
-		|| !strcmp(extension, MIMETYPE_JPEG_X)) {
-		sprintf(header, MIMETYPE_HEADER, MIMETYPE_JPEG);
-
-	} else if (!strcmp(extension, MIMETYPE_HTML_X)) {
-		sprintf(header, MIMETYPE_HEADER, MIMETYPE_HTML);
-
-	} else if (!strcmp(extension, MIMETYPE_CSS_X)) {
-		sprintf(header, MIMETYPE_HEADER, MIMETYPE_CSS);
-
-	} else if (!strcmp(extension, MIMETYPE_JS_X)) {
-		sprintf(header, MIMETYPE_HEADER, MIMETYPE_JS);
-
-	} else  if (!strcmp(extension, MIMETYPE_PLAIN_X)) {
-		sprintf(header, MIMETYPE_HEADER, MIMETYPE_PLAIN);
-
-	} else {
-		sprintf(header, MIMETYPE_HEADER, MIMETYPE_PLAIN);
+	for (i=0; i<NUM_MIMETYPES; i++) {
+		if (!strcmp(extension, MIMETYPES[i].EXT)) {
+			sprintf(header, MIMETYPE_HEADER, MIMETYPES[i].TYPE);
+			str_onto_chlist(s, header);
+		}
 	}
-	
-	str_onto_chlist(s, header);
 }
+
 
 // Appends Content-Type header to the dynamic string
 void append_statusline(chlist_t* s, char* status_str) {
@@ -170,46 +179,30 @@ void append_statusline(chlist_t* s, char* status_str) {
 	str_onto_chlist(s, CRLF);
 }
 
-// Maps http error codes to messages
-char* http_err_to_msg(int errcode) {
-
-	char* error_msg_print = NULL;
-
-	if (errcode == STATUS_501) {
-		error_msg_print = STATUS_501_PRINT;
-	} else if (errcode == STATUS_404) {
-		error_msg_print = STATUS_404_PRINT;
-	} else if (errcode == STATUS_414) {
-		error_msg_print = STATUS_414_PRINT;
-	} else {
-		error_msg_print = STATUS_400_PRINT;
-	}
-	return error_msg_print;
-}
 
 // Send an error response
-void http_err(int fd, int errcode) {
+void http_err(int fd, char* errcode) {
 
 	chlist_t* response = new_chlist();
 	chlist_t* content = new_chlist();
-	char* error_msg_print = http_err_to_msg(errcode);
 
 	// Compose response
-	append_statusline(response, error_msg_print);
-	str_onto_chlist(content, error_msg_print);
-	append_date_and_server_headers(response);
+	str_onto_chlist(content, errcode);
+	append_statusline(response, errcode);
+	append_date_header(response);
+	append_server_header(response);
 	append_contentlen_header(response, content->len);
-	append_mimetype_header(response, MIMETYPE_HTML_X);
 	str_onto_chlist(response, CRLF);
-	chlist_onto_chlist(response, content);
 
 	// Write response to fd
 	writeall(fd, response);
+	writeall(fd, content);
 
 	// Cleanup
 	free_chlist(response);
 	free_chlist(content);
 }
+
 
 // Sends a file over http
 void send_file(int fd, char* filename) {
@@ -228,20 +221,22 @@ void send_file(int fd, char* filename) {
 
 	// Compose http response
 	response = new_chlist();
-	append_statusline(response, STATUS_200_PRINT);
-	append_date_and_server_headers(response);
+	append_statusline(response, STATUS_200);
+	append_date_header(response);
+	append_server_header(response);
 	append_contentlen_header(response, content->len);
 	append_mimetype_header(response, filename);
 	str_onto_chlist(response, CRLF);
-	chlist_onto_chlist(response, content);
 
 	// Sends
 	writeall(fd, response);
+	writeall(fd, content);
 
 	// Cleanup
 	free_chlist(response);
 	free_chlist(content);
 }
+
 
 // Reads the request line into method and url buffer arrays
 int read_request_line(int fd, char* methodbuf, char* urlbuf) {
@@ -254,11 +249,12 @@ int read_request_line(int fd, char* methodbuf, char* urlbuf) {
 
 	requestline = readline_to_chlist(fd);
 	if (requestline == NULL) { return parsed; }
-	printf(RECIEVED_MSG, requestline->s);
-	parsed = sscanf(requestline->s, REQLINE_TEMPLATE, methodbuf, urlbuf);
+	if(DEBUG) { printf(REQ_MSG, requestline->s); }
+	parsed = sscanf(requestline->s, REQ_TEMPLATE, methodbuf, urlbuf);
 	free_chlist(requestline);
 	return parsed;
 }
+
 
 // Serves files to a file descriptor over http
 // fd -- File descripter to read/write
@@ -277,7 +273,7 @@ void httpapp(int fd, void* args) {
 
 	// Choose a response
 	short urltoolong = url[URL_LEN-1] != NULLBYTE;
-	short parse_failed = parsed!=REQINE_PARSE;
+	short parse_failed = parsed!=REQ_PARSE;
 	short unsupported_method = strcmp(method, METHOD_GET) != 0;
 
 	if (urltoolong) {
@@ -291,12 +287,12 @@ void httpapp(int fd, void* args) {
 		char filename[strlen(files)+strlen(url)+1];
 		strcpy(filename, files);
 		strcpy(filename+strlen(filename), url);
-		//printf("filename: %s\n", filename);
 
 		// send file
 		send_file(fd, filename);
 	}
 }
+
 
 void writeall(int fd, chlist_t* chlist) {
 
@@ -307,12 +303,14 @@ void writeall(int fd, chlist_t* chlist) {
 	while (wrotesum < chlist->len) {
 		wrote = write(fd, chlist->s+wrotesum, chlist->len-wrotesum);
 		if (wrote == WRITE_ERR || 0) {  // Give up writing to socket
-			if (DEBUG) { printf("FAILED TO SEND RESPONSE! (%d+%d of %d bytes)\n", wrotesum, wrote, chlist->len); }
+			if (DEBUG) {
+				printf(SEND_FAIL_MSG, wrotesum, wrote, chlist->len);
+			}
 			return;
 		}
 		wrotesum +=wrote;
 	}
 	if (DEBUG) {
-		printf("HTTP SENT %d bytes: %s\n", wrotesum, chlist->s);
+		printf(SEND_MSG, wrotesum, chlist->s);
 	}
 }
