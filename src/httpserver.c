@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <assert.h>
+#include <time.h>
 #include "chlist.h"
 #include "httpserver.h"
 #include "tcpserver.h"
@@ -61,6 +62,7 @@
 #define RECIEVED_MSG "Recieved request: %s\n"
 #define REQLINE_TEMPLATE "%s %s %*s"
 #define WRITE_ERR -1
+#define DEBUG 1
 
 void append_date_and_server_headers(chlist_t* s);
 void append_contentlen_header(chlist_t* s, int contentlen);
@@ -70,6 +72,7 @@ void append_statusline(chlist_t* s, char* status_str);
 void http_err(int fd, int errcode);
 void send_file(int fd, char* filename);
 void httpapp(int fd, void* args);
+void writeall(int fd, chlist_t* chlist);
 
 int read_request_line(int fd, char* methodbuf, char* urlbuf);
 char* http_err_to_msg(int errcode);
@@ -187,7 +190,6 @@ char* http_err_to_msg(int errcode) {
 // Send an error response
 void http_err(int fd, int errcode) {
 
-	int wrote = 0, wrotesum = 0;
 	chlist_t* response = new_chlist();
 	chlist_t* content = new_chlist();
 	char* error_msg_print = http_err_to_msg(errcode);
@@ -202,12 +204,7 @@ void http_err(int fd, int errcode) {
 	chlist_onto_chlist(response, content);
 
 	// Write response to fd
-	while (wrotesum < response->len) {
-		wrote = write(fd, response->s+wrotesum, response->len-wrotesum);
-		if (wrote == WRITE_ERR) { break; } // Give up writing to socket
-		wrotesum +=wrote;
-	}
-	//printf("===ERROR: %d===\n%s\n", errcode, response->s);
+	writeall(fd, response);
 
 	// Cleanup
 	free_chlist(response);
@@ -219,7 +216,6 @@ void send_file(int fd, char* filename) {
 
 	assert(filename != NULL);
 
-	int wrote = 0, wrotesum = 0;
 	chlist_t* content = NULL;
 	chlist_t* response = NULL;
 	FILE* fp = NULL;
@@ -242,12 +238,7 @@ void send_file(int fd, char* filename) {
 	chlist_onto_chlist(response, content);
 
 	// Sends
-	while (wrotesum < response->len) {
-		wrote = write(fd, response->s+wrotesum, response->len-wrotesum);
-		if (wrote == WRITE_ERR) { break; } // Give up writing to socket
-		wrotesum +=wrote;
-	}
-	//printf("===SUCCESS===\n%s\n", response->s);
+	writeall(fd, response);
 
 	// Cleanup
 	free_chlist(response);
@@ -307,5 +298,24 @@ void httpapp(int fd, void* args) {
 
 		// send file
 		send_file(fd, filename);
+	}
+}
+
+void writeall(int fd, chlist_t* chlist) {
+
+	assert(chlist!=NULL);
+
+	int wrote = 0, wrotesum = 0;
+
+	while (wrotesum < chlist->len) {
+		wrote = write(fd, chlist->s+wrotesum, chlist->len-wrotesum);
+		if (wrote == WRITE_ERR || 0) {  // Give up writing to socket
+			if (DEBUG) { printf("FAILED TO SEND RESPONSE! (%d+%d of %d bytes)\n", wrotesum, wrote, chlist->len); }
+			return;
+		}
+		wrotesum +=wrote;
+	}
+	if (DEBUG) {
+		printf("HTTP SENT %d bytes: %s\n", wrotesum, chlist->s);
 	}
 }
