@@ -14,7 +14,8 @@
 #include <unistd.h>
 
 #define DEFAULT_SIZE 8
-#define FSEEK_START 0
+#define ZERO_BYTES 0
+#define READONLY "r"
 
 // Creates a new empty dynamic string
 chlist_t* new_chlist() {
@@ -33,20 +34,37 @@ chlist_t* new_chlist() {
 }
 
 // Creates a chlist and reads a file into it
-chlist_t* file_into_chlist(FILE* fp) {
+chlist_t* file_into_chlist(char* filepath) {
 
-	assert(fp!=NULL);
+	assert(filepath!=NULL);
+
+	FILE* fp = NULL;
 	
-	int newsize = 0;
+	int filesize = 0, bytes_read = 0, progress = 0;
 	chlist_t* s = new_chlist();
 
-	fseek(fp, FSEEK_START, SEEK_END);
-	newsize = ftell(fp);
-	rewind(fp);
+	fp = fopen(filepath, READONLY);
+	if (fp == NULL) { return NULL; }
 
-	resize_chlist(s, newsize);
-	fread(s->s, s->size, sizeof(char), fp);
+	fseek(fp, ZERO_BYTES, SEEK_END);
+	filesize = ftell(fp);
+	fseek(fp, ZERO_BYTES, SEEK_SET);
+
+	resize_chlist(s, filesize);
+
+	while (progress < filesize) {
+		fseek(fp, progress, SEEK_SET);
+		bytes_read = fread(s->s+progress, sizeof(char), s->size-progress, fp);
+		if (bytes_read <= ZERO_BYTES) {
+			fclose(fp);
+			return NULL;
+		}
+		progress += bytes_read;
+	}
+	
 	s->len = s->size;
+	fflush(fp);
+	fclose(fp);
 	return s;
 }
 
@@ -78,7 +96,7 @@ chlist_t* readline_to_chlist(int fd) {
 }
 
 // Resizes a chlist
-void resize_chlist(chlist_t* s, unsigned int newsize) {
+void resize_chlist(chlist_t* s, unsigned long newsize) {
 	
 	assert(s!=NULL);
 

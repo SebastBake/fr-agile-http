@@ -17,15 +17,15 @@
 
 typedef struct {
 	char* s;
-	unsigned int size;
-	unsigned int len;
+	int size;
+	int len;
 } chlist_t;
 
 chlist_t* new_chlist();
-chlist_t* file_into_chlist(FILE* fp);
+chlist_t* file_into_chlist(char* filepath);
 chlist_t* readline_to_chlist(int fd);
 void free_chlist(chlist_t* s);
-void resize_chlist(chlist_t* s, unsigned int size);
+void resize_chlist(chlist_t* s, unsigned long size);
 void str_onto_chlist(chlist_t* s, char* str);
 void chlist_onto_chlist(chlist_t* s, chlist_t* str);
 void char_onto_chlist(chlist_t* s, char c);

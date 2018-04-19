@@ -218,18 +218,16 @@ void send_file(int fd, char* filename) {
 
 	chlist_t* content = NULL;
 	chlist_t* response = NULL;
-	FILE* fp = NULL;
 
 	// Open & load the file
-	fp = fopen(filename, READ_BINARY);
-	if (fp == NULL) {
+	content = file_into_chlist(filename);
+	if (content == NULL) {
 		http_err(fd, STATUS_404);
 		return;
 	}
 
 	// Compose http response
 	response = new_chlist();
-	content = file_into_chlist(fp);
 	append_statusline(response, STATUS_200_PRINT);
 	append_date_and_server_headers(response);
 	append_contentlen_header(response, content->len);
@@ -243,7 +241,6 @@ void send_file(int fd, char* filename) {
 	// Cleanup
 	free_chlist(response);
 	free_chlist(content);
-	fclose(fp);
 }
 
 // Reads the request line into method and url buffer arrays
