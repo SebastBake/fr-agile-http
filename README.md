@@ -1,6 +1,22 @@
 # fr-agile-http
 A fragile http server written in C
 
+## Basic Usage
+
+```
+$ ./server [port number] [path/to/www]
+```
+
+## Example Usage
+
+Run server on port 80, serving the files at ./www_files
+
+```
+$ make clean
+$ make
+$ ./server 80 www_files
+```
+
 ## Features
  - No thread limit causes kamikaze-like behavior with many concurrent connections
  - OS cleans up memory leaks due to detatched threads
